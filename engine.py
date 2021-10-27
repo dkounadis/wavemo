@@ -33,20 +33,6 @@ def build_emodb(data_dir):
                 key = int(key)
             yield mapping[key] if mapping else key
 
-    description = (
-        'Berlin Database of Emotional Speech. '
-        'A German database of emotional utterances '
-        'spoken by actors '
-        'recorded as a part of the DFG funded research project '
-        'SE462/3-1 in 1997 and 1999. '
-        'Recordings took place in the anechoic chamber '
-        'of the Technical University Berlin, '
-        'department of Technical Acoustics. '
-        'It contains about 500 utterances '
-        'from ten different actors '
-        'expressing basic six emotions and neutral.'
-    )
-
     files = sorted(
         [os.path.join('wav', f) for f in os.listdir(os.path.join(data_dir, 'wav'))]
     )
@@ -88,7 +74,7 @@ def build_emodb(data_dir):
         source=None,  # http://emodb.bilderbar.info/download/download.zip'
         usage=audformat.define.Usage.UNRESTRICTED,
         languages=[language],
-        description=description,
+        description='EMODB',
         meta={
             'pdf': (
                 'http://citeseerx.ist.psu.edu/viewdoc/'
@@ -214,7 +200,7 @@ class EmoDS():
         self.aug = audaugs.Compose([
             audaugs.OneOf([audaugs.AddBackgroundNoise(),  # rain under umbrella recording
                            audaugs.ToMono()]  # does nothing
-                           ),
+                         ),
             audaugs.OneOf([
                 audaugs.Reverb(),
                 # audaugs.Harmonic(),  # sponge stuffed attenuated mic
@@ -234,12 +220,12 @@ class EmoDS():
         index = index % len(self)
         x, sample_rate = sf.read(self.wav[index])
         if self.split == 'train':
-            # cut audio interval and move it to start
+            # cut segment
             cut = np.random.randint(0, max(0, len(x) - 4000))  # let 4000 trailing samples
             x = np.concatenate([x[cut:cut + 4000],
                                 x[:cut],
                                 x[cut + 4000:]], 0)
-            # cyclic permutation
+            # cyclic rotation
             i = np.random.randint(0, len(x))
             x = np.roll(x, i)
             x, _ = self.aug(x,
