@@ -1,6 +1,8 @@
 # wavemo
 End-to-end emotion recognition from raw audio
 
+**recognize emotion on your own voice**
+
 A Convolutional Neural Network for Speech Emotion Recognition (SER) trained on the EMODB: http://emodb.bilderbar.info/download/.
 
 `train.py` trains a model from scratch (400 epochs take ~17mins in an RTX GPU)
