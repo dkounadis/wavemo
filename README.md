@@ -13,4 +13,4 @@ Alternatively you can download a pretrained model (76,7% SER accuracy) from here
 `demo.ipynb` shows how to predict emotion on your own voice recording.
 
 For `train.py` you should specify `cfg.data_dir` in `config.py` to point in the EMODB data.
-For `demo.ipynb` you should specify `cfg.pth` in `config.py`
+For `demo.ipynb` you should specify `cfg.pth` in `config.py` to point to the best_accuracy `.pth`.
