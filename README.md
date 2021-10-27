@@ -1,7 +1,7 @@
 # wavemo
 End-to-end emotion recognition from raw audio
 
-A Convolutional Neural Network for Speech Emotion Recognition (SER) trained on the Berlin Database of Emotional Speech EMODB: http://emodb.bilderbar.info/download/.
+A Convolutional Neural Network for Speech Emotion Recognition (SER) trained on the EMODB: http://emodb.bilderbar.info/download/.
 
 `train.py` trains a model from scratch (400 epochs take ~17mins in an RTX GPU)
 and saves best accuracy `.pth`.
@@ -10,6 +10,5 @@ Alternatively you can download a pretrained model (76,7% SER accuracy) from here
 
 `demo.ipynb` shows how to predict emotion on your own voice recording.
 
-To run `train.py` you should specify `cfg.data_dir` in `config.py` to point in the EMODB data.
-
-To run `demo.ipynb` you should specify `cfg.pth` in `config.py`
+For `train.py` you should specify `cfg.data_dir` in `config.py` to point in the EMODB data.
+For `demo.ipynb` you should specify `cfg.pth` in `config.py`
