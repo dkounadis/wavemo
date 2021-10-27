@@ -3,7 +3,7 @@ import torch
 
 cfg = PermissiveDict()
 cfg.dev = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-cfg.data_dir = '/home/dio/emodb-src/'
+cfg.data_dir = 'emodb-src/'  # path to EMODB 
 cfg.net_dir = './networks/'
 cfg.best_pth = 'epoch_138_val_speaker_[15]_accuracy_0000,76786.pth'
 cfg.emotion_mapping = {
