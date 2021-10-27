@@ -1,0 +1,11 @@
+numpy==1.20
+audeer
+audformat
+torch
+torchaudio
+librosa
+augly
+pandas==1.2
+SoundFile
+permissive_dict
+jupyterlab
