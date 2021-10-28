@@ -6,10 +6,12 @@ import os
 import augly.audio as audaugs
 import torch
 import numpy as np
+import sys
 from torch import nn
 from config import cfg
 
 pd.options.display.float_format = '{:.4g}'.format
+dev = cfg.dev
 
 
 def loss_fn(logits, target):
@@ -189,7 +191,7 @@ class EmoDS():
     def __init__(self,
                  db=None,
                  split='train',
-                 data_dir=None):
+                 data_dir=cfg.data_dir):
         self.split = split
         self.sel_speakers = cfg.speaker_assign[split]
         # 'wav/16b10Lb.wav'
@@ -200,7 +202,7 @@ class EmoDS():
         self.aug = audaugs.Compose([
             audaugs.OneOf([audaugs.AddBackgroundNoise(),  # rain under umbrella recording
                            audaugs.ToMono()]  # does nothing
-                         ),
+                          ),
             audaugs.OneOf([
                 audaugs.Reverb(),
                 # audaugs.Harmonic(),  # sponge stuffed attenuated mic
@@ -237,33 +239,6 @@ class EmoDS():
                        (0, max(0, 48000 - len(x))))  # zeros if x<3s
         return x[None, :].astype(np.float32), self.label[index]
 
-
-def benchmark(model=None, ds=None, dev=None):
-    '''Confusion matrix and accuracy'''
-    dl_val = torch.utils.data.DataLoader(ds, batch_size=1,
-                                         shuffle=False,
-                                         num_workers=1,
-                                         drop_last=False)
-    conf = np.zeros((cfg.num_classes, cfg.num_classes))
-    loss = 0
-    with torch.no_grad():
-        model.eval()
-        for step, (x, label) in enumerate(dl_val):
-            logits = model(x.to(dev))
-            loss += loss_fn(logits, label.to(dev)).detach().cpu().numpy()
-            pr_label = logits.argmax(1).cpu().numpy()
-            conf[pr_label, label] += 1
-    statistics = {
-        'val_loss': loss / len(ds),
-        'confusion': pd.DataFrame(data=conf,
-                                  index=cfg.emotions,
-                                  columns=cfg.emotions),
-        'accuracy': np.diag(conf).sum() / max(1, conf.sum()),
-        'speaker': ds.sel_speakers
-    }
-    return statistics
-
-
 # import pygame
 # from scipy.io.wavfile import write
 # def play_np_array(x):
@@ -273,3 +248,79 @@ def benchmark(model=None, ds=None, dev=None):
 #     pygame.mixer.init()
 #     pygame.mixer.music.load('aa.wav')
 #     pygame.mixer.music.play()
+
+
+class Trainer():
+    def __init__(self):
+        db = build_emodb(cfg.data_dir)  # create once
+
+        self.ds_train = EmoDS(db=db, split='train')
+        self.ds_val = EmoDS(db=db, split='val')
+
+        self.dl_train = torch.utils.data.DataLoader(
+            self.ds_train, 
+            batch_size=16, shuffle=True, 
+            num_workers=4, drop_last=True)
+
+        self.dl_val = torch.utils.data.DataLoader(
+            self.ds_val, 
+            batch_size=1, shuffle=False, 
+            num_workers=1, drop_last=False)
+
+        self.model = EmoNet().to(dev)
+        self.opt = torch.optim.AdamW(list(self.model.parameters()), lr=1e-4)
+        self.lr_scheduler = torch.optim.lr_scheduler.MultiStepLR(
+                                        self.opt, [74], gamma=0.1)
+
+        self.best_ser = 0
+        self.last_pth = ''
+
+    def fit(self):
+        for epoch in range(cfg.num_epochs):
+            print(f'__________\n EPOCH {epoch}')
+
+            # train
+
+            self.model.train()
+            for b, (x, label) in enumerate(self.dl_train):
+                self.opt.zero_grad()
+                logits = self.model(x.to(dev))
+                loss = loss_fn(logits, label.to(dev))
+                loss.backward()
+                self.opt.step()
+                sys.stdout.flush()
+                sys.stdout.write(f'loss={loss}\r')
+
+            # validation
+
+            confusion = np.zeros((cfg.num_classes, cfg.num_classes))
+            loss = 0
+            with torch.no_grad():
+                self.model.eval()
+                for x, label in self.dl_val:
+                    logits = self.model(x.to(dev))
+                    loss += loss_fn(logits, label.to(dev)).detach().cpu().numpy()
+                    pr_label = logits.argmax(1).cpu().numpy()
+                    confusion[pr_label, label] += 1
+            # print(pd.DataFrame(data=conf, index=cfg.emotions, columns=cfg.emotions)
+            SER = np.diag(confusion).sum() / max(1, confusion.sum())
+            print('SER accuracy=', SER)
+
+            # save .pth
+
+            acc_str = f'{SER:010.5f}'.replace('.', ',')
+            if SER > self.best_ser:
+                pth = (f'{cfg.net_dir}_epoch_{epoch}'
+                       f'_val_speaker_{self.ds_val.sel_speakers}'
+                       f'_accuracy_{acc_str}.pth')
+                print(f'SAVING NEW BEST MODEL: {pth}')
+                torch.save(self.model.state_dict(), pth)
+                try:
+                    os.remove(self.last_pth)
+                except OSError:
+                    pass
+                self.last_pth = pth
+                self.best_ser = SER
+
+            # update learning rate    
+            self.lr_scheduler.step()
