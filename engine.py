@@ -19,10 +19,10 @@ def loss_fn(logits, target):
     return nn.functional.cross_entropy(logits, target=target)
 
 
-def build_emodb(data_dir):
-    '''[ ('wav/03a04Lc.wav', emotion_id),
-         ('wav/16b10Lb.wav', emotion_id),
-         ... ]
+def build_emodb():
+    '''Returns list of tuples
+    [ ('wav/03a04Lc.wav', emotion_id),
+      ('wav/16b10Lb.wav', emotion_id)]
     '''
 
     #### https://audeering.github.io/audformat/emodb-example.html
@@ -36,7 +36,8 @@ def build_emodb(data_dir):
             yield mapping[key] if mapping else key
 
     files = sorted(
-        [os.path.join('wav', f) for f in os.listdir(os.path.join(data_dir, 'wav'))]
+        [os.path.join('wav', f) 
+            for f in os.listdir(os.path.join(cfg.data_dir, 'wav'))]
     )
     names = [audeer.basename_wo_ext(f) for f in files]
 
@@ -44,7 +45,7 @@ def build_emodb(data_dir):
                     mapping=cfg.emotion_mapping))
 
     y = pd.read_csv(
-        os.path.join(data_dir, 'erkennung.txt'),
+        os.path.join(cfg.data_dir, 'erkennung.txt'),
         usecols=['Satz', 'erkannt'],
         index_col='Satz',
         delim_whitespace=True,
@@ -190,14 +191,13 @@ class EmoNet(nn.Module):
 class EmoDS():
     def __init__(self,
                  db=None,
-                 split='train',
-                 data_dir=cfg.data_dir):
+                 split='train'):
         self.split = split
         self.sel_speakers = cfg.speaker_assign[split]
         # 'wav/16b10Lb.wav'
         filt = [(f, e) for f, e in db if int(f[4:6]) in self.sel_speakers]
         print(f'ds_{split} length={len(filt)}')
-        self.wav = [data_dir + f for f, e in filt]
+        self.wav = [cfg.data_dir + f for f, e in filt]
         self.label = [cfg.name2id[e] for f, e in filt]
         self.aug = audaugs.Compose([
             audaugs.OneOf([audaugs.AddBackgroundNoise(),  # rain under umbrella recording
@@ -252,7 +252,8 @@ class EmoDS():
 
 class Trainer():
     def __init__(self):
-        db = build_emodb(cfg.data_dir)  # create once
+
+        db = build_emodb()  # create once
 
         self.ds_train = EmoDS(db=db, split='train')
         self.ds_val = EmoDS(db=db, split='val')
@@ -280,7 +281,6 @@ class Trainer():
             print(f'__________\n EPOCH {epoch}')
 
             # train
-
             self.model.train()
             for b, (x, label) in enumerate(self.dl_train):
                 self.opt.zero_grad()
@@ -292,7 +292,6 @@ class Trainer():
                 sys.stdout.write(f'loss={loss}\r')
 
             # validation
-
             confusion = np.zeros((cfg.num_classes, cfg.num_classes))
             loss = 0
             with torch.no_grad():
@@ -306,10 +305,9 @@ class Trainer():
             SER = np.diag(confusion).sum() / max(1, confusion.sum())
             print('SER accuracy=', SER)
 
-            # save .pth
-
-            acc_str = f'{SER:010.5f}'.replace('.', ',')
+            # save
             if SER > self.best_ser:
+                acc_str = f'{SER:010.5f}'.replace('.', ',')
                 pth = (f'{cfg.net_dir}_epoch_{epoch}'
                        f'_val_speaker_{self.ds_val.sel_speakers}'
                        f'_accuracy_{acc_str}.pth')
