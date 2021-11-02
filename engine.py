@@ -292,16 +292,16 @@ class Trainer():
                 sys.stdout.write(f'loss={loss}\r')
 
             # validation
+            self.model.eval()
             confusion = np.zeros((cfg.num_classes, cfg.num_classes))
-            loss = 0
             with torch.no_grad():
-                self.model.eval()
                 for x, label in self.dl_val:
                     logits = self.model(x.to(dev))
-                    loss += loss_fn(logits, label.to(dev)).detach().cpu().numpy()
                     pr_label = logits.argmax(1).cpu().numpy()
                     confusion[pr_label, label] += 1
-            # print(pd.DataFrame(data=conf, index=cfg.emotions, columns=cfg.emotions)
+            # print(pd.DataFrame(data=confusion,
+            #                    index=cfg.emotions, 
+            #                    columns=cfg.emotions)
             SER = np.diag(confusion).sum() / max(1, confusion.sum())
             print('SER accuracy=', SER)
 
